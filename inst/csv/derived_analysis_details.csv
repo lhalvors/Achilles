@@ -6,6 +6,7 @@ Meas:NoNumValue:Percentage,Percentage of rows in MEASUREMENT table that have NUL
 UnmappedData:byDomain:Percentage,Percentage of rows that are unmapped,percentage,domain,,The measure looks at relative size of unmapped data.,27
 Provider:SpeciatlyCnt,Count of specialties found in the provider table,count of specialties,,,"The measure looks at how many different specialties are present. For general datasets, we expect at least some minimum number of specialties.",38
 DrugExposure:ConceptCnt,Count of distinct drug_concept_ids (drug_exposure),count of concepts,,,"Count of distinct drugs. For most datasets, a low number may indicate a data quality problem.",
+Fact:NoNumValue:Percentage,Percentage of rows in SB_FACT table that have NULL recorded as numerical value,percentage,,,The measure looks at data recorded in SB_FACT table. A significant percentage of such rows typically contain a numerical result.,99
 DrugEra:ConceptCnt,Count of distinct drug_concept_ids (drug_era),count of concepts,,,Count of distinct drugs.,
 ach_2000:Percentage,Percentage of patients with at least 1 Dx and 1 Rx,percentage,,,Indicates patient with some minimum events in their record,
 ach_2001:Percentage,Percentage of patients with at least 1 Dx and 1 Proc,percentage,,,Indicates patient with some minimum events in their record,

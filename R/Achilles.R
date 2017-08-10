@@ -30,7 +30,7 @@
 #' 
 #' @export
 getAnalysisDetails <- function() {
-  pathToCsv <- system.file("csv", "analysisDetails.csv", package = "Achilles")
+  pathToCsv <- system.file("csv", "analysisDetails.csv", package = "AchillesSB")
   analysisDetails <- read.csv(pathToCsv)
   return(analysisDetails)
 }
@@ -98,7 +98,7 @@ achilles <- function (connectionDetails,
 #   vocabDatabase <- strsplit(vocabDatabaseSchema ,"\\.")[[1]][1]
   
   achillesSql <- loadRenderTranslateSql(sqlFilename = achillesFile,
-                                        packageName = "Achilles",
+                                        packageName = "AchillesSB",
                                         dbms = connectionDetails$dbms,
                                         is_pdw = connectionDetails$dbms=='pdw',
                                         oracleTempSchema = oracleTempSchema,
@@ -136,7 +136,7 @@ achilles <- function (connectionDetails,
   
   if (runHeel) {
     heelSql <- loadRenderTranslateSql(sqlFilename = heelFile,
-                                      packageName = "Achilles",
+                                      packageName = "AchillesSB",
                                       dbms = connectionDetails$dbms,
                                       oracleTempSchema = oracleTempSchema,
                                       cdm_database_schema = cdmDatabaseSchema,
@@ -214,7 +214,7 @@ achillesHeel <- function (connectionDetails,
   }
   
   heelSql <- loadRenderTranslateSql(sqlFilename = heelFile,
-                                    packageName = "Achilles",
+                                    packageName = "AchillesSB",
                                     dbms = connectionDetails$dbms,
                                     oracleTempSchema = oracleTempSchema,
                                     cdm_database_schema = cdmDatabaseSchema,

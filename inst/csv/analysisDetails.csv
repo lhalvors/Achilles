@@ -210,3 +210,19 @@
 2105,"Number of device exposure records, by device_concept_id by device_type_concept_id","device_concept_id","device_type_concept_id",,,
 2200,"Number of persons with at least one note by  note_type_concept_id","note_type_concept_id",,,,
 2201,"Number of note records, by note_type_concept_id","note_type_concept_id",,,,
+2800,"Number of persons with at least one fact, by fact_concept_id",fact_concept_id
+2801,"Number of fact records, by fact_concept_id",measurement_concept_id
+2802,"Number of persons by fact start month, by fact_concept_id",measurement_concept_id,calendar month
+2803,Number of distinct fact concepts per person
+2804,"Number of persons with at least one fact, by fact_concept_id by calendar year by gender by age decile",fact_concept_id,calendar year,gender_concept_id,age decile
+2805,"Number of records records, by fact_concept_id by fact_type_concept_id",fact_concept_id,fact_type_concept_id
+2806,Distribution of age by factconcept_id,fact_concept_id,gender_concept_id
+2807,"Number of fact records, by fact_concept_id and unit_concept_id",fact_concept_id,unit_concept_id
+2809,Number of fact records with invalid person_id
+2810,Number of fact records outside valid observation period
+2812,Number of fact records with invalid provider_id
+2813,Number of fact records with invalid visit_id
+2814,"Number of fact records with no value (numeric, string, or concept)"
+2815,"Distribution of numeric values, by measurement_concept_id and unit_concept_id"
+2820,Number of fact records  by fact start month,calendar month
+2821,Number of fact records with no numeric value

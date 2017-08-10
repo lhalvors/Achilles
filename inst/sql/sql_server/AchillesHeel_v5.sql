@@ -198,6 +198,9 @@ select count(*) as statistic_value, 'Measurement:ConceptCnt' as measure_id
 from @results_database_schema.ACHILLES_results where analysis_id = 1801;
 
 insert into @results_database_schema.ACHILLES_results_derived (statistic_value,measure_id)    
+select count(*) as statistic_value, 'SB_Fact:ConceptCnt' as measure_id 
+from @results_database_schema.ACHILLES_results where analysis_id = 2801;
+insert into @results_database_schema.ACHILLES_results_derived (statistic_value,measure_id)    
 select count(*) as statistic_value, 'Visit:ConceptCnt' as measure_id 
 from @results_database_schema.ACHILLES_results where analysis_id = 201;
 
@@ -1038,6 +1041,12 @@ select
   'UnmappedData:byDomain:Percentage' as measure_id
 from @results_database_schema.achilles_results_derived where measure_id ='ach_1801:GlobalRowCnt';
 
+insert into @results_database_schema.ACHILLES_results_derived (statistic_value,stratum_1,measure_id)    
+select
+  100.0*(select statistic_value from @results_database_schema.achilles_results_derived where measure_id = 'UnmappedData:ach_2801:GlobalRowCnt')/statistic_value as statistic_value,
+  'SB_Fact' as stratum_1,
+  'UnmappedData:byDomain:Percentage' as measure_id
+from @results_database_schema.achilles_results_derived where measure_id ='ach_2801:GlobalRowCnt';
 
 --actual rule27
 
@@ -1395,5 +1404,35 @@ where d.measure_id = 'ach_2002:Percentage'
 and d.statistic_value < @ThresholdMinimalPtMeasDxRx  --threshold identified in the DataQuality study
 ;
 
+--rule 99 DQ rule
+--are all values (or more than threshold) in sb_fact table non numerical?
+--(count of sb_fact records with no numerical value is in analysis_id 2821)
 
+with t1 (all_count) as 
+  (select sum(count_value) as all_count from @results_database_schema.achilles_results where analysis_id = 2820)
+select 
+(select count_value from @results_database_schema.achilles_results where analysis_id = 2821)*100.0/all_count as statistic_value,
+CAST('Fact:NoNumValue:Percentage' AS VARCHAR(100)) as measure_id
+into #tempResults 
+from t1;
+
+insert into @results_database_schema.ACHILLES_results_derived (statistic_value, measure_id)    
+  select  statistic_value,measure_id from #tempResults;
+
+INSERT INTO @results_database_schema.ACHILLES_HEEL_results (ACHILLES_HEEL_warning,rule_id)
+SELECT 
+  'NOTIFICATION: percentage of non-numerical fact records exceeds general population threshold ' as ACHILLES_HEEL_warning,
+	99 as rule_id
+FROM #tempResults t
+--WHERE t.analysis_id IN (100730,100430) --umbrella version
+WHERE measure_id='Fact:NoNumValue:Percentage' --t.analysis_id IN (100000)
+--the intended threshold is 1 percent, this value is there to get pilot data from early adopters
+	AND t.statistic_value >= 80
+;
+
+--clean up temp tables for rule 99
+truncate table #tempResults;
+drop table #tempResults;
+
+--end of rule 99
 

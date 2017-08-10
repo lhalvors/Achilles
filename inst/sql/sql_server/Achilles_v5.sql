@@ -1268,7 +1268,55 @@ insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_na
 	values (2201, 'Number of note records, by note_type_concept_id', 'note_type_concept_id');
 
 
+--2800- SB_FACT
 
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name)
+	values (2800, 'Number of persons with at least one fact, by fact_concept_id', 'fact_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name)
+	values (2801, 'Number of fact records, by fact_concept_id', 'fact_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name, stratum_2_name)
+	values (2802, 'Number of persons by fact start month, by fact_concept_id', 'fact_concept_id', 'calendar month');	
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2803, 'Number of distinct fact concepts per person');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name, stratum_2_name, stratum_3_name, stratum_4_name)
+	values (2804, 'Number of persons with at least one fact, by fact_concept_id by calendar year by gender by age decile', 'fact_concept_id', 'calendar year', 'gender_concept_id', 'age decile');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name, stratum_2_name)
+	values (2805, 'Number of fact records, by fact_concept_id by fact_type_concept_id', 'fact_concept_id', 'fact_type_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name, stratum_2_name)
+	values (2806, 'Distribution of age by fact_concept_id', 'fact_concept_id', 'gender_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name, stratum_2_name)
+	values (2807, 'Number of fact records, by fact_concept_id and unit_concept_id', 'fact_concept_id', 'unit_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2809, 'Number of fact records with invalid person_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2810, 'Number of fact records outside valid observation period');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2812, 'Number of fact records with invalid provider_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2813, 'Number of fact records with invalid visit_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2814, 'Number of fact records with no value (numeric, string, or concept)');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2815, 'Distribution of numeric values, by fact_concept_id and unit_concept_id');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name, stratum_1_name)
+	values (2820, 'Number of fact records  by fact start month', 'calendar month');
+
+insert into @results_database_schema.ACHILLES_analysis (analysis_id, analysis_name)
+	values (2821, 'Number of fact records with no numeric value');
 
 --end of importing values into analysis lookup table
 
@@ -7447,6 +7495,554 @@ where m.value_as_number is null
 
 /********************************************
 
+ACHILLES Analyses on SB_FACT table
+
+*********************************************/
+
+--{2800 IN (@list_of_analysis_ids)}?{
+-- 2800	Number of persons with at least one fact, by fact_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, count_value)
+select 2800 as analysis_id, 
+	f.fact_concept_id as stratum_1,
+	COUNT_BIG(distinct f.PERSON_ID) as count_value
+from
+	@cdm_database_schema.sb_fact f
+group by f.fact_concept_id
+;
+--}
+
+--{2801 IN (@list_of_analysis_ids)}?{
+-- 2801	Number of fact records, by fact_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, count_value)
+select 2801 as analysis_id, 
+	f.fact_concept_id as stratum_1,
+	COUNT_BIG(f.PERSON_ID) as count_value
+from
+	@cdm_database_schema.sb_fact f
+group by f.fact_concept_id
+;
+--}
+
+--{2802 IN (@list_of_analysis_ids)}?{
+-- 2802	Number of persons by fact start month, by fact_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, stratum_2, count_value)
+select 2802 as analysis_id,   
+	f.fact_concept_id as stratum_1,
+	YEAR(fact_date)*100 + month(fact_date) as stratum_2, 
+	COUNT_BIG(distinct PERSON_ID) as count_value
+from
+	@cdm_database_schema.sb_fact f
+group by f.fact_concept_id, 
+	YEAR(fact_date)*100 + month(fact_date)
+;
+--}
+
+--{2803 IN (@list_of_analysis_ids)}?{
+-- 2803	Number of distinct fact concepts per person
+with rawData(count_value) as
+(
+  select num_facts as count_value
+  from
+	(
+  	select f.person_id, COUNT_BIG(distinct f.fact_concept_id) as num_facts
+  	from
+  	@cdm_database_schema.sb_fact f
+  	group by f.person_id
+	) t0
+),
+overallStats (avg_value, stdev_value, min_value, max_value, total) as
+(
+  select avg(1.0 * count_value) as avg_value,
+    stdev(count_value) as stdev_value,
+    min(count_value) as min_value,
+    max(count_value) as max_value,
+    count_big(*) as total
+  from rawData
+),
+stats (count_value, total, rn) as
+(
+  select count_value, 
+  	count_big(*) as total, 
+		row_number() over (order by count_value) as rn
+  FROM rawData
+  group by count_value
+),
+priorStats (count_value, total, accumulated) as
+(
+  select s.count_value, s.total, sum(p.total) as accumulated
+  from stats s
+  join stats p on p.rn <= s.rn
+  group by s.count_value, s.total, s.rn
+)
+select 2803 as analysis_id,
+  o.total as count_value,
+  o.min_value,
+	o.max_value,
+	o.avg_value,
+	o.stdev_value,
+	MIN(case when p.accumulated >= .50 * o.total then count_value else o.max_value end) as median_value,
+	MIN(case when p.accumulated >= .10 * o.total then count_value else o.max_value end) as p10_value,
+	MIN(case when p.accumulated >= .25 * o.total then count_value else o.max_value end) as p25_value,
+	MIN(case when p.accumulated >= .75 * o.total then count_value else o.max_value end) as p75_value,
+	MIN(case when p.accumulated >= .90 * o.total then count_value else o.max_value end) as p90_value
+into #tempResults
+from priorStats p
+CROSS JOIN overallStats o
+GROUP BY o.total, o.min_value, o.max_value, o.avg_value, o.stdev_value
+;
+
+insert into @results_database_schema.ACHILLES_results_dist (analysis_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value)
+select analysis_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value
+from #tempResults
+;
+
+truncate table #tempResults;
+
+drop table #tempResults;
+--}
+
+--{2804 IN (@list_of_analysis_ids)}?{
+-- 2804	Number of persons with at least one fact, by fact_concept_id by calendar year by gender by age decile
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, stratum_2, stratum_3, stratum_4, count_value)
+select 2804 as analysis_id,   
+	f.fact_concept_id as stratum_1,
+	YEAR(fact_date) as stratum_2,
+	p1.gender_concept_id as stratum_3,
+	floor((year(fact_date) - p1.year_of_birth)/10) as stratum_4, 
+	COUNT_BIG(distinct p1.PERSON_ID) as count_value
+from @cdm_database_schema.PERSON p1
+inner join @cdm_database_schema.sb_fact f on p1.person_id = f.person_id
+group by f.fact_concept_id, 
+	YEAR(fact_date),
+	p1.gender_concept_id,
+	floor((year(fact_date) - p1.year_of_birth)/10)
+;
+--}
+
+
+--{2805 IN (@list_of_analysis_ids)}?{
+-- 2805	Number of fact records, by fact_concept_id by fact_type_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, stratum_2, count_value)
+select 2805 as analysis_id, 
+	f.fact_concept_id as stratum_1,
+	f.fact_type_concept_id as stratum_2, 
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+group by f.fact_concept_id,
+	f.fact_type_concept_id
+;
+--}
+
+--{2806 IN (@list_of_analysis_ids)}?{
+-- 2806	Distribution of age by fact_concept_id
+select o1.fact_concept_id as subject_id,
+  p1.gender_concept_id,
+	o1.fact_start_year - p1.year_of_birth as count_value
+INTO #rawData_2806
+from @cdm_database_schema.PERSON p1
+inner join
+(
+	select person_id, fact_concept_id, min(year(fact_date)) as fact_start_year
+	from @cdm_database_schema.sb_fact
+	group by person_id, fact_concept_id
+) o1
+on p1.person_id = o1.person_id
+;
+
+with overallStats (stratum1_id, stratum2_id, avg_value, stdev_value, min_value, max_value, total) as
+(
+  select subject_id as stratum1_id,
+    gender_concept_id as stratum2_id,
+    avg(1.0 * count_value) as avg_value,
+    stdev(count_value) as stdev_value,
+    min(count_value) as min_value,
+    max(count_value) as max_value,
+    count_big(*) as total
+  FROM #rawData_2806
+	group by subject_id, gender_concept_id
+),
+stats (stratum1_id, stratum2_id, count_value, total, rn) as
+(
+  select subject_id as stratum1_id, gender_concept_id as stratum2_id, count_value, count_big(*) as total, row_number() over (partition by subject_id, gender_concept_id order by count_value) as rn
+  FROM #rawData_2806
+  group by subject_id, gender_concept_id, count_value
+),
+priorStats (stratum1_id, stratum2_id, count_value, total, accumulated) as
+(
+  select s.stratum1_id, s.stratum2_id, s.count_value, s.total, sum(p.total) as accumulated
+  from stats s
+  join stats p on s.stratum1_id = p.stratum1_id and s.stratum2_id = p.stratum2_id and p.rn <= s.rn
+  group by s.stratum1_id, s.stratum2_id, s.count_value, s.total, s.rn
+)
+select 2806 as analysis_id,
+  o.stratum1_id,
+  o.stratum2_id,
+  o.total as count_value,
+  o.min_value,
+	o.max_value,
+	o.avg_value,
+	o.stdev_value,
+	MIN(case when p.accumulated >= .50 * o.total then count_value else o.max_value end) as median_value,
+	MIN(case when p.accumulated >= .10 * o.total then count_value else o.max_value end) as p10_value,
+	MIN(case when p.accumulated >= .25 * o.total then count_value else o.max_value end) as p25_value,
+	MIN(case when p.accumulated >= .75 * o.total then count_value else o.max_value end) as p75_value,
+	MIN(case when p.accumulated >= .90 * o.total then count_value else o.max_value end) as p90_value
+into #tempResults
+from priorStats p
+join overallStats o on p.stratum1_id = o.stratum1_id and p.stratum2_id = o.stratum2_id 
+GROUP BY o.stratum1_id, o.stratum2_id, o.total, o.min_value, o.max_value, o.avg_value, o.stdev_value
+;
+
+insert into @results_database_schema.ACHILLES_results_dist (analysis_id, stratum_1, stratum_2, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value)
+select analysis_id, stratum1_id, stratum2_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value
+from #tempResults
+;
+
+truncate table #rawData_2806;
+drop table #rawData_2806;
+
+truncate table #tempResults;
+drop table #tempResults;
+--}
+
+--{2807 IN (@list_of_analysis_ids)}?{
+-- 2807	Number of fact records, by fact_concept_id and unit_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, stratum_2, count_value)
+select 2807 as analysis_id, 
+	f.fact_concept_id as stratum_1,
+	f.unit_concept_id as stratum_2,
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+group by f.fact_concept_id, f.unit_concept_id
+;
+--}
+
+--{2809 IN (@list_of_analysis_ids)}?{
+-- 2809	Number of fact records with invalid person_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2809 as analysis_id,  
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+	left join @cdm_database_schema.PERSON p1 on p1.person_id = f.person_id
+where p1.person_id is null
+;
+--}
+
+--{2810 IN (@list_of_analysis_ids)}?{
+-- 2810	Number of fact records outside valid observation period
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2810 as analysis_id,  
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+	left join @cdm_database_schema.observation_period op on op.person_id = f.person_id
+	and f.fact_date >= op.observation_period_start_date
+	and f.fact_date <= op.observation_period_end_date
+where op.person_id is null
+;
+--}
+
+--{2812 IN (@list_of_analysis_ids)}?{
+-- 2812	Number of fact records with invalid provider_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2812 as analysis_id,  
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+	left join @cdm_database_schema.provider p on p.provider_id = f.provider_id
+where f.provider_id is not null
+	and p.provider_id is null
+;
+--}
+
+--{2813 IN (@list_of_analysis_ids)}?{
+-- 2813	Number of fact records with invalid visit_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2813 as analysis_id, COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+	left join @cdm_database_schema.visit_occurrence vo on f.visit_occurrence_id = vo.visit_occurrence_id
+where f.visit_occurrence_id is not null
+	and vo.visit_occurrence_id is null
+;
+--}
+
+--{2814 IN (@list_of_analysis_ids)}?{
+-- 2814	Number of fact records with no value (numeric, date, string or concept)
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2814 as analysis_id,  
+	COUNT_BIG(f.PERSON_ID) as count_value
+from
+	@cdm_database_schema.sb_fact f
+where f.value_as_number is null
+	and f.value_as_string is null
+	and f.value_as_date is null
+	and f.value_as_concept_id is null
+;
+--}
+
+--{2815 IN (@list_of_analysis_ids)}?{
+-- 2815  Distribution of numeric values, by fact_concept_id and unit_concept_id
+select fact_concept_id as subject_id, 
+	unit_concept_id,
+	value_as_number as count_value
+INTO #rawData_2815
+from @cdm_database_schema.sb_fact f
+where f.unit_concept_id is not null
+	and f.value_as_number is not null
+;
+
+with overallStats (stratum1_id, stratum2_id, avg_value, stdev_value, min_value, max_value, total) as
+(
+  select subject_id as stratum1_id,
+    unit_concept_id as stratum2_id,
+    avg(1.0 * count_value) as avg_value,
+    stdev(count_value) as stdev_value,
+    min(count_value) as min_value,
+    max(count_value) as max_value,
+    count_big(*) as total
+  FROM #rawData_2815
+	group by subject_id, unit_concept_id
+),
+stats (stratum1_id, stratum2_id, count_value, total, rn) as
+(
+  select subject_id as stratum1_id, unit_concept_id as stratum2_id, count_value, count_big(*) as total, row_number() over (partition by subject_id, unit_concept_id order by count_value) as rn
+  FROM #rawData_2815
+  group by subject_id, unit_concept_id, count_value
+),
+priorStats (stratum1_id, stratum2_id, count_value, total, accumulated) as
+(
+  select s.stratum1_id, s.stratum2_id, s.count_value, s.total, sum(p.total) as accumulated
+  from stats s
+  join stats p on s.stratum1_id = p.stratum1_id and s.stratum2_id = p.stratum2_id and p.rn <= s.rn
+  group by s.stratum1_id, s.stratum2_id, s.count_value, s.total, s.rn
+)
+select 2815 as analysis_id,
+  o.stratum1_id,
+  o.stratum2_id,
+  o.total as count_value,
+  o.min_value,
+	o.max_value,
+	o.avg_value,
+	o.stdev_value,
+	MIN(case when p.accumulated >= .50 * o.total then count_value else o.max_value end) as median_value,
+	MIN(case when p.accumulated >= .10 * o.total then count_value else o.max_value end) as p10_value,
+	MIN(case when p.accumulated >= .25 * o.total then count_value else o.max_value end) as p25_value,
+	MIN(case when p.accumulated >= .75 * o.total then count_value else o.max_value end) as p75_value,
+	MIN(case when p.accumulated >= .90 * o.total then count_value else o.max_value end) as p90_value
+into #tempResults
+from priorStats p
+join overallStats o on p.stratum1_id = o.stratum1_id and p.stratum2_id = o.stratum2_id 
+GROUP BY o.stratum1_id, o.stratum2_id, o.total, o.min_value, o.max_value, o.avg_value, o.stdev_value
+;
+
+insert into @results_database_schema.ACHILLES_results_dist (analysis_id, stratum_1, stratum_2, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value)
+select analysis_id, stratum1_id, stratum2_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value
+from #tempResults
+;
+
+truncate table #rawData_2815;
+drop table #rawData_2815;
+
+truncate table #tempResults;
+drop table #tempResults;
+
+--}
+
+--{2816 IN (@list_of_analysis_ids)}?{
+-- 2816	Distribution of low range, by fact_concept_id and unit_concept_id
+select fact_concept_id as subject_id, 
+	unit_concept_id,
+	(select cast(min(value_as_number) as bigint) from sb_fact) as count_value
+--	range_low as count_value
+INTO #rawData_2816
+from @cdm_database_schema.sb_fact f
+where f.unit_concept_id is not null
+	and f.value_as_number is not null
+--	and f.range_low is not null
+--	and f.range_high is not null
+;
+
+with overallStats (stratum1_id, stratum2_id, avg_value, stdev_value, min_value, max_value, total) as
+(
+  select subject_id as stratum1_id,
+    unit_concept_id as stratum2_id,
+    avg(1.0 * count_value) as avg_value,
+    stdev(count_value) as stdev_value,
+    min(count_value) as min_value,
+    max(count_value) as max_value,
+    count_big(*) as total
+  FROM #rawData_2816
+	group by subject_id, unit_concept_id
+),
+stats (stratum1_id, stratum2_id, count_value, total, rn) as
+(
+  select subject_id as stratum1_id, unit_concept_id as stratum2_id, count_value, count_big(*) as total, row_number() over (partition by subject_id, unit_concept_id order by count_value) as rn
+  FROM #rawData_2816
+  group by subject_id, unit_concept_id, count_value
+),
+priorStats (stratum1_id, stratum2_id, count_value, total, accumulated) as
+(
+  select s.stratum1_id, s.stratum2_id, s.count_value, s.total, sum(p.total) as accumulated
+  from stats s
+  join stats p on s.stratum1_id = p.stratum1_id and s.stratum2_id = p.stratum2_id and p.rn <= s.rn
+  group by s.stratum1_id, s.stratum2_id, s.count_value, s.total, s.rn
+)
+select 2816 as analysis_id,
+  o.stratum1_id,
+  o.stratum2_id,
+  o.total as count_value,
+  o.min_value,
+	o.max_value,
+	o.avg_value,
+	o.stdev_value,
+	MIN(case when p.accumulated >= .50 * o.total then count_value else o.max_value end) as median_value,
+	MIN(case when p.accumulated >= .10 * o.total then count_value else o.max_value end) as p10_value,
+	MIN(case when p.accumulated >= .25 * o.total then count_value else o.max_value end) as p25_value,
+	MIN(case when p.accumulated >= .75 * o.total then count_value else o.max_value end) as p75_value,
+	MIN(case when p.accumulated >= .90 * o.total then count_value else o.max_value end) as p90_value
+into #tempResults
+from priorStats p
+join overallStats o on p.stratum1_id = o.stratum1_id and p.stratum2_id = o.stratum2_id 
+GROUP BY o.stratum1_id, o.stratum2_id, o.total, o.min_value, o.max_value, o.avg_value, o.stdev_value
+;
+
+insert into @results_database_schema.ACHILLES_results_dist (analysis_id, stratum_1, stratum_2, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value)
+select analysis_id, stratum1_id, stratum2_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value
+from #tempResults
+;
+
+truncate table #rawData_2816;
+drop table #rawData_2816;
+
+truncate table #tempResults;
+drop table #tempResults;
+
+--}
+
+--{2817 IN (@list_of_analysis_ids)}?{
+-- 2817	Distribution of high range, by observation_concept_id and unit_concept_id
+select fact_concept_id as subject_id, 
+	unit_concept_id,
+	(select cast (max(value_as_number) as bigint) from sb_fact) as count_value
+--	range_high as count_value
+INTO #rawData_2817
+from @cdm_database_schema.sb_fact f
+where f.unit_concept_id is not null
+	and f.value_as_number is not null
+--	and f.range_low is not null
+--	and f.range_high is not null
+;
+
+with overallStats (stratum1_id, stratum2_id, avg_value, stdev_value, min_value, max_value, total) as
+(
+  select subject_id as stratum1_id,
+    unit_concept_id as stratum2_id,
+    avg(1.0 * count_value) as avg_value,
+    stdev(count_value) as stdev_value,
+    min(count_value) as min_value,
+    max(count_value) as max_value,
+    count_big(*) as total
+  FROM #rawData_2817
+	group by subject_id, unit_concept_id
+),
+stats (stratum1_id, stratum2_id, count_value, total, rn) as
+(
+  select subject_id as stratum1_id, unit_concept_id as stratum2_id, count_value, count_big(*) as total, row_number() over (partition by subject_id, unit_concept_id order by count_value) as rn
+  FROM #rawData_2817
+  group by subject_id, unit_concept_id, count_value
+),
+priorStats (stratum1_id, stratum2_id, count_value, total, accumulated) as
+(
+  select s.stratum1_id, s.stratum2_id, s.count_value, s.total, sum(p.total) as accumulated
+  from stats s
+  join stats p on s.stratum1_id = p.stratum1_id and s.stratum2_id = p.stratum2_id and p.rn <= s.rn
+  group by s.stratum1_id, s.stratum2_id, s.count_value, s.total, s.rn
+)
+select 2817 as analysis_id,
+  o.stratum1_id,
+  o.stratum2_id,
+  o.total as count_value,
+  o.min_value,
+	o.max_value,
+	o.avg_value,
+	o.stdev_value,
+	MIN(case when p.accumulated >= .50 * o.total then count_value else o.max_value end) as median_value,
+	MIN(case when p.accumulated >= .10 * o.total then count_value else o.max_value end) as p10_value,
+	MIN(case when p.accumulated >= .25 * o.total then count_value else o.max_value end) as p25_value,
+	MIN(case when p.accumulated >= .75 * o.total then count_value else o.max_value end) as p75_value,
+	MIN(case when p.accumulated >= .90 * o.total then count_value else o.max_value end) as p90_value
+into #tempResults
+from priorStats p
+join overallStats o on p.stratum1_id = o.stratum1_id and p.stratum2_id = o.stratum2_id 
+GROUP BY o.stratum1_id, o.stratum2_id, o.total, o.min_value, o.max_value, o.avg_value, o.stdev_value
+;
+
+insert into @results_database_schema.ACHILLES_results_dist (analysis_id, stratum_1, stratum_2, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value)
+select analysis_id, stratum1_id, stratum2_id, count_value, min_value, max_value, avg_value, stdev_value, median_value, p10_value, p25_value, p75_value, p90_value
+from #tempResults
+;
+
+truncate table #rawData_2817;
+drop table #rawData_2817;
+
+truncate table #tempResults;
+drop table #tempResults;
+
+--}
+
+--{2818 IN (@list_of_analysis_ids)}?{
+-- 2818	Number of observation records below/within/above normal range, by observation_concept_id and unit_concept_id
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, stratum_2, stratum_3, count_value)
+select 2818 as analysis_id,  
+	f.fact_concept_id as stratum_1,
+	f.unit_concept_id as stratum_2,
+	case
+--		when f.value_as_number < f.range_low then 'Below Range Low'
+--		when f.value_as_number >= f.range_low and f.value_as_number <= f.range_high then 'Within Range'
+		when f.value_as_number is not null then 'Within Range'
+--		when f.value_as_number > f.range_high then 'Above Range High'
+		else 'Other' end as stratum_3,
+	COUNT_BIG(f.PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+where f.value_as_number is not null
+	and f.unit_concept_id is not null
+--	and f.range_low is not null
+--	and f.range_high is not null
+group by fact_concept_id,
+	unit_concept_id,
+	  case 
+--		when f.value_as_number < f.range_low then 'Below Range Low'
+--		when f.value_as_number >= f.range_low and f.value_as_number <= f.range_high then 'Within Range'
+		when f.value_as_number is not null then 'Within Range'
+--		when f.value_as_number > f.range_high then 'Above Range High'
+		else 'Other' end
+;
+--}
+
+--{2820 IN (@list_of_analysis_ids)}?{
+-- 2820	Number of fact records by fact start month
+insert into @results_database_schema.ACHILLES_results (analysis_id, stratum_1, count_value)
+select 2820 as analysis_id,   
+	YEAR(fact_date)*100 + month(fact_date) as stratum_1, 
+	COUNT_BIG(PERSON_ID) as count_value
+from @cdm_database_schema.sb_fact f
+group by YEAR(fact_date)*100 + month(fact_date)
+;
+--}
+
+--{2821 IN (@list_of_analysis_ids)}?{
+-- 2821	Number of fact records with no numeric value
+insert into @results_database_schema.ACHILLES_results (analysis_id, count_value)
+select 2821 as analysis_id,  
+	COUNT_BIG(f.PERSON_ID) as count_value
+from
+	@cdm_database_schema.sb_fact f
+where f.value_as_number is null
+;
+--}
+
+--end of sb_fact analyses
+
+/********************************************
+
 Reports 
 
 *********************************************/
@@ -7459,6 +8055,8 @@ INSERT INTO @results_database_schema.ACHILLES_results (analysis_id, stratum_1, s
 select 1900 as analysis_id, CAST(table_name AS VARCHAR(255)) as stratum_1, source_value as stratum_2, cnt as count_value
  from (
 select 'measurement' as table_name,measurement_source_value as source_value, COUNT_BIG(*) as cnt from @cdm_database_schema.measurement where measurement_concept_id = 0 group by measurement_source_value 
+union
+select 'sb_fact' as table_name,fact_source_value as source_value, COUNT_BIG(*) as cnt from @cdm_database_schema.sb_fact where fact_concept_id = 0 group by fact_source_value 
 union
 select 'procedure_occurrence' as table_name,procedure_source_value as source_value, COUNT_BIG(*) as cnt from @cdm_database_schema.procedure_occurrence where procedure_concept_id = 0 group by procedure_source_value 
 union
@@ -7524,6 +8122,8 @@ select 2002 as analysis_id,
     FROM (
                 select COUNT_BIG(*) cnt from (
                     select distinct person_id from @cdm_database_schema.measurement
+                    intersect
+                    select distinct person_id from @cdm_database_schema.sb_fact
                     intersect
                     select distinct person_id from @cdm_database_schema.condition_occurrence
                     intersect
